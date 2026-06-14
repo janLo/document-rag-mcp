@@ -1,6 +1,7 @@
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 import fitz  # PyMuPDF
 import yaml
 
@@ -102,7 +103,20 @@ class DocumentExtractor:
 
         for page_idx, page in enumerate(doc):
             page_num = page_idx + 1
-            text = page.get_text("text")
+            
+            # Use blocks to extract text as logical paragraphs, cleaning up intra-paragraph line breaks
+            blocks = page.get_text("blocks")
+            text_blocks = []
+            for b in blocks:
+                if len(b) >= 7 and b[6] == 0:  # text block
+                    # Fix hyphenated words across lines, then replace other newlines with space
+                    block_text = b[4].strip()
+                    block_text = re.sub(r"-\n\s*", "", block_text)
+                    block_text = re.sub(r"\s*\n\s*", " ", block_text)
+                    if block_text:
+                        text_blocks.append(block_text)
+            
+            text = "\n\n".join(text_blocks)
 
             # Scanned check (very little text)
             non_space_chars = len("".join(text.split()))

@@ -32,7 +32,7 @@ class VisionConfig(BaseModel):
 
 class ChunkingConfig(BaseModel):
     max_chunk_size: int = 512          # tokens
-    similarity_threshold: float = 0.5  # for semantic boundary detection
+    similarity_threshold: float = 0.3  # for semantic boundary detection
     local_model: str = "all-MiniLM-L6-v2"  # overridable via --chunking-model CLI flag
 
 

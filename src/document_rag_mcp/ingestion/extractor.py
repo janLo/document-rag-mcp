@@ -5,6 +5,8 @@ import re
 import fitz  # PyMuPDF
 import yaml
 
+fitz.TOOLS.mupdf_display_errors(False)
+
 
 @dataclass
 class ExtractedPage:

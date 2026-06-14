@@ -1,0 +1,53 @@
+# document-rag-mcp configuration example
+
+# Define your document collections.
+# Each collection groups one or more folders and scans them recursively.
+collections:
+  - name: "project-docs"
+    paths:
+      - "/absolute/path/to/my-project/docs"
+      - "/absolute/path/to/another/folder"
+    file_patterns:
+      - "*.txt"
+      - "*.md"
+      - "*.pdf"
+
+  - name: "research-papers"
+    paths:
+      - "/absolute/path/to/papers"
+    file_patterns:
+      - "*.pdf"
+
+# Remote embedding model config via an OpenAI-compatible endpoint.
+# Compatible with lemonade, OpenRouter, Ollama, etc.
+embedding:
+  base_url: "http://localhost:8080/v1"   # Default local lemonade endpoint
+  api_key: "unused"                     # Use "unused" or actual key
+  model: "embed-gemma-300m-FLM"         # Default embedding model
+  dimensions: 768                       # Dimensionality of the vectors
+  batch_size: 32                        # Batch size for embedding requests
+
+# Local semantic chunking configurations.
+chunking:
+  max_chunk_size: 512                   # Maximum tokens per chunk
+  similarity_threshold: 0.5             # Topic shift threshold for semantic chunking
+  local_model: "all-MiniLM-L6-v2"       # Model used for local semantic boundary detection
+                                        # Note: Falls back to TokenChunker if sentence-transformers is not installed.
+
+# Storage paths for metadata and vector storage.
+storage:
+  data_dir: "./data"                    # Path where SQLite and ChromaDB data will be saved
+
+# Optional Vision LLM config for scanned/un-OCRed PDFs.
+# Set enabled to true to run page-to-image extraction via multimodal completions.
+vision:
+  enabled: false
+  base_url: "http://localhost:8080/v1"   # Vision endpoint URL
+  api_key: "unused"                     # Vision API Key
+  model: "gpt-4o"                       # Multimodal model name
+
+# HTTP/SSE Server bind configurations.
+# Only used when serving via HTTP transport.
+server:
+  host: "127.0.0.1"
+  port: 8000

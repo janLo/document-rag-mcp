@@ -105,16 +105,21 @@ class DocumentExtractor:
             page_num = page_idx + 1
             
             # Use blocks to extract text as logical paragraphs, cleaning up intra-paragraph line breaks
-            blocks = page.get_text("blocks")
-            text_blocks = []
-            for b in blocks:
-                if len(b) >= 7 and b[6] == 0:  # text block
-                    # Fix hyphenated words across lines, then replace other newlines with space
-                    block_text = b[4].strip()
-                    block_text = re.sub(r"-\n\s*", "", block_text)
-                    block_text = re.sub(r"\s*\n\s*", " ", block_text)
-                    if block_text:
-                        text_blocks.append(block_text)
+            try:
+                blocks = page.get_text("blocks")
+                text_blocks = []
+                for b in blocks:
+                    if len(b) >= 7 and b[6] == 0:  # text block
+                        # Fix hyphenated words across lines, then replace other newlines with space
+                        block_text = b[4].strip()
+                        block_text = re.sub(r"-\n\s*", "", block_text)
+                        block_text = re.sub(r"\s*\n\s*", " ", block_text)
+                        if block_text:
+                            text_blocks.append(block_text)
+            except Exception:
+                # Fallback to visual text extraction if the structure tree is malformed
+                raw_text = page.get_text("text").strip()
+                text_blocks = [raw_text] if raw_text else []
             
             text = "\n\n".join(text_blocks)
 

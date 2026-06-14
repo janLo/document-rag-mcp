@@ -118,12 +118,18 @@ class DocumentExtractor:
             
             text = "\n\n".join(text_blocks)
 
-            # Scanned check (very little text)
+            # Scanned or Diagram check
+            # If the page has very little text overall OR the text consists of many small fragmented blocks (like diagram labels)
             non_space_chars = len("".join(text.split()))
-            is_empty_or_scanned = non_space_chars < 40
+            
+            avg_block_len = 0
+            if len(text_blocks) > 0:
+                avg_block_len = sum(len(b) for b in text_blocks) / len(text_blocks)
+                
+            is_empty_or_diagram = (non_space_chars < 40) or (0 < avg_block_len < 25)
 
             image_bytes = None
-            if is_empty_or_scanned and self.vision_enabled:
+            if is_empty_or_diagram and self.vision_enabled:
                 # Render to high-quality PNG (144 DPI)
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 image_bytes = pix.tobytes("png")

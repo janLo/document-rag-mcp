@@ -117,6 +117,12 @@ class DocumentChunker:
             if not section_text.strip():
                 continue
 
+            # Drop sections that are too small to carry semantic meaning on their own
+            # The headings themselves are already preserved in the metadata of subsequent sections
+            words = [w for w in section_text.split() if any(c.isalnum() for c in w)]
+            if len(words) < 3:
+                continue
+
             num_tokens = self.semantic_chunker.tokenizer.count_tokens(section_text)
             if num_tokens <= self.config.max_chunk_size:
                 # Keep it as a single chunk
@@ -132,10 +138,12 @@ class DocumentChunker:
                 # Chunk it semantically (or with TokenChunker if that's the fallback)
                 sub_chunks = self.semantic_chunker.chunk(section_text)
                 for sc in sub_chunks:
-                    # Adjust start_index and end_index to be relative to full_text
-                    sc.start_index += start
-                    sc.end_index += start
-                    chunks_out.append(sc)
+                    # Filter sub_chunks as well just in case
+                    sc_words = [w for w in sc.text.split() if any(c.isalnum() for c in w)]
+                    if len(sc_words) >= 3:
+                        sc.start_index += start
+                        sc.end_index += start
+                        chunks_out.append(sc)
 
         total_chunks = len(chunks_out)
         document_chunks: list[DocumentChunk] = []

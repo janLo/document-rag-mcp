@@ -106,16 +106,26 @@ class SearchEngine:
         scores: dict[str, float] = {}
         result_map: dict[str, SearchResult] = {}
 
+        semantic_scores: dict[str, float] = {}
+        bm25_scores: dict[str, float] = {}
+
         for rank, r in enumerate(semantic, 1):
             key = r.metadata.chunk_hash
-            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
-            result_map[key] = r
+            new_score = 1.0 / (k + rank)
+            semantic_scores[key] = max(semantic_scores.get(key, 0.0), new_score)
+            if key not in result_map:
+                result_map[key] = r
 
         for rank, r in enumerate(bm25, 1):
             key = r.metadata.chunk_hash
-            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
+            new_score = 1.0 / (k + rank)
+            bm25_scores[key] = max(bm25_scores.get(key, 0.0), new_score)
             if key not in result_map:
                 result_map[key] = r
+
+        for key in set(semantic_scores.keys()).union(bm25_scores.keys()):
+            # Give BM25 a slight 1% edge to break ties in favor of exact matches
+            scores[key] = semantic_scores.get(key, 0.0) + (bm25_scores.get(key, 0.0) * 1.01)
 
         ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:top_k]
         

@@ -1,5 +1,11 @@
 # document-rag-mcp
 
+[![Tests](https://github.com/janlo/document-rag-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/janlo/document-rag-mcp/actions/workflows/test.yml)
+[![Docs](https://github.com/janlo/document-rag-mcp/actions/workflows/docs.yml/badge.svg)](https://github.com/janlo/document-rag-mcp/actions/workflows/docs.yml)
+[![PyPI - Version](https://img.shields.io/pypi/v/document-rag-mcp)](https://pypi.org/project/document-rag-mcp/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/document-rag-mcp)](https://pypi.org/project/document-rag-mcp/)
+[![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+
 A high-performance Model Context Protocol (MCP) server for local document search and extraction. It recursively scans and watches configured directories for `.txt`, `.md`, and `.pdf` files, indexes their content, and exposes them as tools for LLMs.
 
 📖 **Full Documentation**: [https://janlo.github.io/document-rag-mcp/](https://janlo.github.io/document-rag-mcp/)

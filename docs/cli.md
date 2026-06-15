@@ -6,6 +6,7 @@ The `document-rag-mcp` CLI exposes subcommands to run the RAG server, test searc
 
 - `--config`, `-c`: Path to the YAML configuration file. Can also be set via the `DOCRAG_CONFIG` environment variable.
 - `--chunking-model`: Override the local model name for semantic boundary splits. Can also be set via the `DOCRAG_CHUNKING_MODEL` environment variable.
+- `--debug`: Enable debug logging and request timings/timings trace.
 - `--help`: Show the help message and exit.
 
 ## Subcommands
@@ -33,11 +34,11 @@ document-rag-mcp ingest --collection "project-docs"
 ```
 
 ### `search`
-Executes a semantic search against the indexed collections and prints formatted results to the terminal.
+Executes a hybrid search (semantic vector + BM25 keyword search merged via Reciprocal Rank Fusion) against the indexed collections and prints formatted results to the terminal.
 
-- `QUERY` (Argument, Required): The semantic search query text.
+- `QUERY` (Argument, Required): The search query text.
 - `--collection`, `-c`: Filter search results to a specific collection by name.
-- `--top-k`, `-k`: The number of nearest matches to display (default 5).
+- `--top-k`, `-k`: The number of matches to display (default 5).
 
 **Example:**
 ```bash

@@ -7,8 +7,9 @@ This Model Context Protocol (MCP) server enables semantic search and content ext
 ## Key Features
 
 - **Recursive Folder Scanning**: Configured folders are recursively scanned on startup and then monitored in real-time via inotify (`watchfiles`).
-- **Incremental Indexing**: Uses content hashing (SHA-256) at both the file and chunk levels. Files that have not changed are skipped completely on startup, and modified files only re-embed chunks that actually changed.
+- **Incremental Indexing**: Uses content hashing (SHA-256) at both the file and chunk levels. Files that have not changed are skipped completely on startup. For modified files, only changed or new text chunks are embedded, reusing existing vectors where possible.
+- **Hybrid Search (Semantic + BM25)**: Blends dense semantic vector search (ChromaDB) with sparse keyword search (SQLite FTS5) using Reciprocal Rank Fusion (RRF) for optimal retrieval.
 - **Auto-Pruning**: Automatically detects when files are deleted from the disk (both while running and when offline) and prunes them from the index.
 - **Multimodal PDF Processing**: Detects scanned or text-less PDF pages and routes them through an optional vision-capable LLM to extract text.
-- **MCP Native**: Exposes tools for semantic search, collection stats, metadata analysis, and full document text/binary content retrieval.
+- **MCP Native**: Exposes tools for hybrid search, collection stats, metadata analysis, and full document text/binary content retrieval.
 - **Secure Boundaries**: Strictly validates all path parameters against configured collections folders to protect against directory traversal attacks.

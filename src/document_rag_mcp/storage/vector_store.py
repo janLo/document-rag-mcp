@@ -150,6 +150,44 @@ class VectorStore:
 
         return search_results
 
+    def get_chunks_by_ids(self, collection_name: str, ids: list[str]) -> list[SearchResult]:
+        """Retrieves specific chunks by their IDs from ChromaDB and returns them as SearchResult objects."""
+        if not ids:
+            return []
+        sanitized = sanitize_collection_name(collection_name)
+        try:
+            collection = self.client.get_collection(name=sanitized)
+            results = collection.get(ids=ids, include=["documents", "metadatas"])
+            
+            search_results = []
+            if results and "documents" in results and results["documents"]:
+                docs = results["documents"]
+                metas = results["metadatas"]
+                res_ids = results["ids"]
+                
+                for i in range(len(docs)):
+                    meta_dict = metas[i]
+                    
+                    # Deserialize datetime fields
+                    if "last_modified" in meta_dict and isinstance(meta_dict["last_modified"], str):
+                        meta_dict["last_modified"] = datetime.fromisoformat(meta_dict["last_modified"])
+                    if "ingested_at" in meta_dict and isinstance(meta_dict["ingested_at"], str):
+                        meta_dict["ingested_at"] = datetime.fromisoformat(meta_dict["ingested_at"])
+                    
+                    metadata = ChunkMetadata(**meta_dict)
+                    
+                    search_results.append(
+                        SearchResult(
+                            text=docs[i],
+                            score=0.0,  # Score is not meaningful for direct ID fetch
+                            metadata=metadata,
+                        )
+                    )
+                return search_results
+        except Exception:
+            pass
+        return []
+
     def list_collections(self) -> list[str]:
         """Returns the names of all collections in ChromaDB."""
         return [c.name for c in self.client.list_collections()]

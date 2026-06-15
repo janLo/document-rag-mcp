@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any
 
@@ -36,6 +37,10 @@ class StateStore:
                     chunk_index INTEGER NOT NULL,
                     FOREIGN KEY (file_path) REFERENCES files(file_path) ON DELETE CASCADE
                 );
+            """)
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts
+                USING fts5(chunk_id UNINDEXED, text, collection UNINDEXED, tokenize='unicode61');
             """)
             conn.commit()
 
@@ -83,7 +88,12 @@ class StateStore:
     ) -> None:
         """Saves file metadata and its chunks in a single transaction."""
         with self._get_conn() as conn:
-            # First, delete existing file metadata (cascade delete chunks automatically)
+            # First, delete existing chunks from FTS index
+            conn.execute(
+                "DELETE FROM chunks_fts WHERE chunk_id IN (SELECT chunk_id FROM chunks WHERE file_path = ?)",
+                (file_path,),
+            )
+            # Delete existing file metadata (cascade delete chunks automatically)
             conn.execute("DELETE FROM files WHERE file_path = ?", (file_path,))
 
             # Insert file metadata
@@ -113,8 +123,49 @@ class StateStore:
     def delete_file(self, file_path: str) -> None:
         """Deletes file metadata and cascaded chunks from state store."""
         with self._get_conn() as conn:
+            conn.execute(
+                "DELETE FROM chunks_fts WHERE chunk_id IN (SELECT chunk_id FROM chunks WHERE file_path = ?)",
+                (file_path,),
+            )
             conn.execute("DELETE FROM files WHERE file_path = ?", (file_path,))
             conn.commit()
+
+    def save_chunks_text(self, chunks: list[tuple[str, str, str]]) -> None:
+        """Saves multiple chunks text in the FTS5 virtual table at once."""
+        with self._get_conn() as conn:
+            conn.executemany(
+                "INSERT OR REPLACE INTO chunks_fts (chunk_id, text, collection) VALUES (?, ?, ?)",
+                chunks,
+            )
+            conn.commit()
+
+    def search_fts(
+        self, query: str, collection: str | None = None, top_k: int = 10
+    ) -> list[tuple[str, str, float]]:
+        """Returns [(chunk_id, collection, bm25_score), ...] ranked by relevance using FTS5 BM25 search."""
+        with self._get_conn() as conn:
+            # Simple sanitization: keep alphanumeric and spaces, replace everything else with space
+            cleaned_query = re.sub(r'[^\w\s]', ' ', query).strip()
+            if not cleaned_query:
+                cleaned_query = query
+
+            if collection:
+                rows = conn.execute(
+                    """SELECT chunk_id, collection, bm25(chunks_fts) 
+                       FROM chunks_fts 
+                       WHERE collection = ? AND chunks_fts MATCH ? 
+                       ORDER BY bm25(chunks_fts) ASC LIMIT ?""",
+                    (collection, cleaned_query, top_k)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT chunk_id, collection, bm25(chunks_fts) 
+                       FROM chunks_fts 
+                       WHERE chunks_fts MATCH ? 
+                       ORDER BY bm25(chunks_fts) ASC LIMIT ?""",
+                    (cleaned_query, top_k)
+                ).fetchall()
+            return [(row[0], row[1], float(row[2])) for row in rows]
 
     def list_all_files(self) -> list[dict[str, Any]]:
         """Lists metadata of all tracked files."""

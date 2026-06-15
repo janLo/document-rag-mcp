@@ -1,10 +1,18 @@
+import time
+import logging
 from openai import AsyncOpenAI
 from ..config import EmbeddingConfig
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingClient:
     def __init__(self, config: EmbeddingConfig):
-        self.client = AsyncOpenAI(base_url=config.base_url, api_key=config.api_key)
+        self.client = AsyncOpenAI(
+            base_url=config.base_url,
+            api_key=config.api_key,
+            timeout=120.0,  # Increase timeout to handle slow local servers
+        )
         self.model = config.model
         self.dimensions = config.dimensions
         self.batch_size = config.batch_size
@@ -19,6 +27,7 @@ class EmbeddingClient:
         # Process in batches
         for i in range(0, len(texts), self.batch_size):
             batch = texts[i : i + self.batch_size]
+            start_time = time.perf_counter()
             try:
                 # Try sending with dimensions parameter
                 response = await self.client.embeddings.create(
@@ -32,6 +41,13 @@ class EmbeddingClient:
                     input=batch,
                     model=self.model,
                 )
+            end_time = time.perf_counter()
+            duration = end_time - start_time
+            total_chars = sum(len(t) for t in batch)
+            logger.debug(
+                f"Embedding batch of {len(batch)} texts ({total_chars} total chars) "
+                f"took {duration:.4f}s"
+            )
 
             # Extract embeddings in correct order
             batch_embeddings = [data.embedding for data in response.data]

@@ -85,6 +85,8 @@ def create_test_pdf(path: Path, page1_text: str, page2_text: str):
 @pytest.mark.asyncio
 async def test_pipeline_incremental_chunk_dedup(tmp_path, mock_vision_client):
     config = AppConfig()
+    config.chunking.local_model = "invalid-local-model"
+    config.chunking.max_chunk_size = 12
     state_store = StateStore(tmp_path)
     vector_store = VectorStore(tmp_path)
 
@@ -107,23 +109,23 @@ async def test_pipeline_incremental_chunk_dedup(tmp_path, mock_vision_client):
         vision_client=mock_vision_client,
     )
 
-    pdf_path = tmp_path / "doc.pdf"
-    # Create PDF with 2 pages -> results in exactly 2 chunks (1 per page)
-    create_test_pdf(pdf_path, "First paragraph text.", "Second paragraph text.")
+    txt_path = tmp_path / "doc.txt"
+    # Create TXT file with 2 chunks of length 12
+    txt_path.write_text("First text. Second text.", encoding="utf-8")
 
     # Ingest 1: Index the file
-    await pipeline.ingest_file(pdf_path, "coll")
+    await pipeline.ingest_file(txt_path, "coll")
     first_call_count = embed_calls
     assert first_call_count == 2
 
     # Verify collection counts
     assert vector_store.collection_stats("coll")["count"] == 2
 
-    # Ingest 2: Modify page 1, keep page 2 identical
-    create_test_pdf(pdf_path, "Modified paragraph text.", "Second paragraph text.")
-    await pipeline.ingest_file(pdf_path, "coll")
+    # Ingest 2: Modify first chunk, keep second chunk identical
+    txt_path.write_text("Third text. Second text.", encoding="utf-8")
+    await pipeline.ingest_file(txt_path, "coll")
 
-    # Only page 1 chunk should be embedded. Page 2 chunk should reuse its vector.
+    # Only first chunk should be embedded. Second chunk should reuse its vector.
     # Total embed calls should be 3 (2 from first run, 1 from second run)
     assert embed_calls == 3
     assert vector_store.collection_stats("coll")["count"] == 2

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from pathlib import Path
 import click
@@ -17,9 +18,22 @@ import click
     envvar="DOCRAG_CHUNKING_MODEL",
     help="Override the local model used for semantic chunking boundary detection.",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug logging and request timings.",
+)
 @click.pass_context
-def main(ctx: click.Context, config: Path | None, chunking_model: str | None) -> None:
+def main(ctx: click.Context, config: Path | None, chunking_model: str | None, debug: bool) -> None:
     """RAG MCP Server CLI — Manage document indexing and semantic search server."""
+    if debug:
+        logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    else:
+        # Default to WARNING to reduce noise from httpx and other libraries unless debug is requested
+        logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        # Ensure our own logs still show at INFO level if needed, though we will mainly use debug for timings
+        logging.getLogger("document_rag_mcp").setLevel(logging.INFO)
+
     if config:
         os.environ["DOCRAG_CONFIG"] = str(config.resolve())
     if chunking_model:

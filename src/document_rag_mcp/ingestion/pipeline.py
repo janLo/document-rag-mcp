@@ -60,11 +60,15 @@ class IngestionPipeline:
             return False
 
         # 2. Extract pages
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Extracting file: {file_str}")
         pages = self.extractor.extract(path)
 
         # 3. Handle optional vision processing for scanned / text-less pages
         for page in pages:
             if page.image_bytes and self.config.vision.enabled:
+                logger.info(f"Using vision processing for page {page.page_number} of {path.name}")
                 ocr_text = await self.vision_client.extract_text_from_image(page.image_bytes)
                 if ocr_text:
                     # Append OCR extracted text to the page text
@@ -139,6 +143,13 @@ class IngestionPipeline:
             last_modified=mtime,
             chunks=chunk_states,
         )
+
+        # 8b. Update FTS index
+        fts_data = [
+            (chunk.id, chunk.text, collection_name)
+            for chunk in new_chunks
+        ]
+        self.state_store.save_chunks_text(fts_data)
 
         return True
 

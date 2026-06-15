@@ -23,7 +23,7 @@ pipeline = IngestionPipeline(
     embedding_client=embedding_client,
     vision_client=vision_client,
 )
-search_engine = SearchEngine(vector_store, embedding_client)
+search_engine = SearchEngine(vector_store, embedding_client, state_store)
 
 # 2. FastMCP server definition
 mcp = FastMCP("document-rag-mcp")

@@ -100,7 +100,7 @@ async def test_search_multi_collection(tmp_path, mock_embedding_client):
     assert results[0].metadata.collection == "coll2"
     assert results[1].text == "text from coll1"
     assert results[1].metadata.collection == "coll1"
-    assert results[0].score < results[1].score
+    assert results[0].score > results[1].score
 
 
 @pytest.mark.asyncio

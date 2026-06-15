@@ -103,6 +103,12 @@ class DocumentExtractor:
         doc = fitz.open(path)
         pages = []
 
+        # Primary: use PDF's own TOC for headings
+        toc = doc.get_toc()  # [(level, title, page_num_1indexed), ...]
+        toc_headings_by_page: dict[int, list[tuple[str, int]]] = {}
+        for level, title, page_num in toc:
+            toc_headings_by_page.setdefault(page_num, []).append((title, level))
+
         for page_idx, page in enumerate(doc):
             page_num = page_idx + 1
             
@@ -141,58 +147,11 @@ class DocumentExtractor:
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
                 image_bytes = pix.tobytes("png")
 
-            # Typography-aware heading detection using get_text("dict")
-            headings = []
-            try:
-                blocks = page.get_text("dict").get("blocks", [])
-                sizes = []
-                for b in blocks:
-                    if b.get("type") == 0:  # text block
-                        for line in b.get("lines", []):
-                            for span in line.get("spans", []):
-                                txt = span.get("text", "").strip()
-                                if txt:
-                                    sizes.append(span.get("size", 10.0))
-
-                # Compute body text font size (most common size)
-                body_size = 10.0
-                if sizes:
-                    body_size = Counter(sizes).most_common(1)[0][0]
-
-                # Detect headings
-                for b in blocks:
-                    if b.get("type") == 0:
-                        for line in b.get("lines", []):
-                            spans = line.get("spans", [])
-                            if not spans:
-                                continue
-                            line_text = "".join(s.get("text", "") for s in spans).strip()
-                            if not line_text:
-                                continue
-
-                            first_span = spans[0]
-                            size = first_span.get("size", 10.0)
-                            font = first_span.get("font", "").lower()
-
-                            is_bold = "bold" in font or "black" in font or "heavy" in font
-                            is_large = size > body_size * 1.2
-
-                            # Short line, doesn't end with typical sentence punctuation
-                            if (
-                                (is_large or is_bold)
-                                and len(line_text) < 120
-                                and not line_text.endswith((".", ":", ";", ","))
-                            ):
-                                if size > body_size * 1.5:
-                                    level = 1
-                                elif size > body_size * 1.3:
-                                    level = 2
-                                else:
-                                    level = 3
-                                headings.append((line_text, level))
-            except Exception:
-                # Fallback: if dict parsing fails, don't break extraction
-                pass
+            # Use TOC headings if available, else fall back to typography detection
+            if page_num in toc_headings_by_page:
+                headings = toc_headings_by_page[page_num]
+            else:
+                headings = self._detect_headings_by_typography(page)
 
             pages.append(
                 ExtractedPage(
@@ -206,3 +165,57 @@ class DocumentExtractor:
 
         doc.close()
         return pages
+
+    def _detect_headings_by_typography(self, page: fitz.Page) -> list[tuple[str, int]]:
+        headings = []
+        try:
+            blocks = page.get_text("dict").get("blocks", [])
+            sizes = []
+            for b in blocks:
+                if b.get("type") == 0:  # text block
+                    for line in b.get("lines", []):
+                        for span in line.get("spans", []):
+                            txt = span.get("text", "").strip()
+                            if txt:
+                                sizes.append(span.get("size", 10.0))
+
+            # Compute body text font size (most common size)
+            body_size = 10.0
+            if sizes:
+                body_size = Counter(sizes).most_common(1)[0][0]
+
+            # Detect headings
+            for b in blocks:
+                if b.get("type") == 0:
+                    for line in b.get("lines", []):
+                        spans = line.get("spans", [])
+                        if not spans:
+                            continue
+                        line_text = "".join(s.get("text", "") for s in spans).strip()
+                        if not line_text:
+                            continue
+
+                        first_span = spans[0]
+                        size = first_span.get("size", 10.0)
+                        font = first_span.get("font", "").lower()
+
+                        is_bold = "bold" in font or "black" in font or "heavy" in font
+                        is_large = size > body_size * 1.2
+
+                        # Short line, doesn't end with typical sentence punctuation
+                        if (
+                            (is_large or is_bold)
+                            and len(line_text) < 120
+                            and not line_text.endswith((".", ":", ";", ","))
+                        ):
+                            if size > body_size * 1.5:
+                                level = 1
+                            elif size > body_size * 1.3:
+                                level = 2
+                            else:
+                                level = 3
+                            headings.append((line_text, level))
+        except Exception:
+            # Fallback: if dict parsing fails, don't break extraction
+            pass
+        return headings

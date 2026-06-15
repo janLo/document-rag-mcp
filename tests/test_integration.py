@@ -100,15 +100,15 @@ async def test_integration_flow(tmp_path):
         await pipeline.ingest_file(f, "test-coll")
         
     # Verify in DB
-    # PDF should have 2 chunks, MD 1 chunk, TXT 1 chunk (since they fit in default sizes)
-    # Total chunks = 4
-    assert vector_store.collection_stats("test-coll")["count"] == 4
+    # PDF should have 1 chunk, MD 1 chunk, TXT 1 chunk
+    # Total chunks = 3
+    assert vector_store.collection_stats("test-coll")["count"] == 3
     assert state_store.get_file(str(txt_file)) is not None
     assert state_store.get_file(str(md_file)) is not None
     assert state_store.get_file(str(pdf_file)) is not None
     
     first_ingest_calls = embed_calls
-    assert first_ingest_calls == 4
+    assert first_ingest_calls == 3
 
     # --- Step 3: Run Semantic Search ---
     # Search for "important"
@@ -124,13 +124,12 @@ async def test_integration_flow(tmp_path):
     # Run pipeline on PDF file again
     await pipeline.ingest_file(pdf_file, "test-coll")
     
-    # Chunks count in Chroma should still be 4
-    assert vector_store.collection_stats("test-coll")["count"] == 4
+    # Chunks count in Chroma should still be 3
+    assert vector_store.collection_stats("test-coll")["count"] == 3
     
-    # Check embedding calls: only 1 new page chunk should have been embedded,
-    # the second page chunk was identical so its embedding was reused!
-    # Total calls should be 5 (4 from run 1, 1 from run 2)
-    assert embed_calls == 5
+    # Check embedding calls: the modified PDF chunk is embedded.
+    # Total calls should be 4 (3 from run 1, 1 from run 2)
+    assert embed_calls == 4
 
     # --- Step 5: Deletion and Pruning ---
     # Delete the txt file from disk
@@ -142,5 +141,5 @@ async def test_integration_flow(tmp_path):
     
     # verify txt pruned
     assert state_store.get_file(str(txt_file)) is None
-    # total chunks in Chroma should decrease from 4 to 3
-    assert vector_store.collection_stats("test-coll")["count"] == 3
+    # total chunks in Chroma should decrease from 3 to 2
+    assert vector_store.collection_stats("test-coll")["count"] == 2

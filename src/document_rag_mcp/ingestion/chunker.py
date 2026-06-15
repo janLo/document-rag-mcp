@@ -43,7 +43,7 @@ class DocumentChunker:
         file_type: str,
         last_modified: datetime,
     ) -> list[DocumentChunk]:
-        """Transforms a list of ExtractedPages into a flat list of metadata-rich DocumentChunks."""
+        """Transforms a list of ExtractedPages into a flat list of metadata-rich DocumentChunks by merging pages and chunking once."""
         file_name = os.path.basename(file_path)
 
         # Resolve document title once for the entire document
@@ -58,36 +58,43 @@ class DocumentChunker:
         if not document_title:
             document_title = os.path.splitext(file_name)[0]
 
-        raw_chunks: list[tuple[str, int | None, list[tuple[str, int]]]] = []
-
-        # Generate chunks per page
+        # 1. Build unified text + page/heading offset maps
+        parts, page_ranges, heading_offsets = [], [], []
+        offset = 0
         for page in pages:
-            text_to_chunk = page.text.strip()
-            if not text_to_chunk:
+            text = page.text.strip()
+            if not text:
                 continue
+            start = offset
+            parts.append(text)
+            offset += len(text)
+            page_ranges.append((start, offset, page.page_number))
+            # Record heading positions within the merged text
+            for heading_text, level in page.headings:
+                pos = text.find(heading_text)
+                if pos >= 0:
+                    heading_offsets.append((start + pos, heading_text, level))
+            parts.append("\n\n")
+            offset += 2
 
-            if file_type == "md":
-                chunks_out = self.markdown_chunker.chunk(text_to_chunk)
-            else:
-                chunks_out = self.semantic_chunker.chunk(text_to_chunk)
+        full_text = "".join(parts).rstrip()
+        if not full_text:
+            return []
 
-            for c in chunks_out:
-                raw_chunks.append((c.text, page.page_number, page.headings))
+        # 2. Chunk once on full document
+        if file_type == "md":
+            chunks_out = self.markdown_chunker.chunk(full_text)
+        else:
+            chunks_out = self.semantic_chunker.chunk(full_text)
 
-        total_chunks = len(raw_chunks)
+        total_chunks = len(chunks_out)
         document_chunks: list[DocumentChunk] = []
 
-        for idx, (chunk_text, page_num, headings) in enumerate(raw_chunks):
-            # Resolve section / heading
-            section = None
-            if headings:
-                # Check headings in reverse order (closest heading before/within the chunk)
-                for heading_text, _ in reversed(headings):
-                    if heading_text in chunk_text:
-                        section = heading_text
-                        break
-                if not section:
-                    section = headings[0][0]
+        for idx, chunk in enumerate(chunks_out):
+            chunk_text = chunk.text
+            # 3. Map each chunk to page + section via offset lookup
+            page_num = self._find_primary_page(chunk.start_index, chunk.end_index, page_ranges)
+            section = self._find_section_at_offset(chunk.start_index, chunk.end_index, heading_offsets)
 
             # Compute chunk-level hash
             chunk_hash = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
@@ -123,3 +130,38 @@ class DocumentChunker:
             )
 
         return document_chunks
+
+    def _find_primary_page(self, start: int, end: int, page_ranges: list[tuple[int, int, int]]) -> int | None:
+        """Page where the majority of the chunk text lives."""
+        best_page, best_overlap = None, 0
+        for p_start, p_end, page_num in page_ranges:
+            overlap = max(0, min(end, p_end) - max(start, p_start))
+            if overlap > best_overlap:
+                best_overlap, best_page = overlap, page_num
+        if best_page is None and page_ranges:
+            best_page = page_ranges[0][2]
+        return best_page
+
+    def _find_section_at_offset(self, chunk_start: int, chunk_end: int, heading_offsets: list[tuple[int, str, int]]) -> str | None:
+        """Last heading that precedes the chunk start, or falls back to the first heading in/near the chunk."""
+        if not heading_offsets:
+            return None
+
+        section = None
+        # 1. Try to find the last heading that starts before or at chunk_start
+        for offset, text, level in heading_offsets:
+            if offset <= chunk_start:
+                section = text
+            else:
+                break
+
+        if section is not None:
+            return section
+
+        # 2. If chunk starts before any heading, but contains/overlaps a heading, use the first one it contains
+        for offset, text, level in heading_offsets:
+            if chunk_start <= offset < chunk_end:
+                return text
+
+        # 3. Otherwise, fall back to the first heading in the document
+        return heading_offsets[0][1]

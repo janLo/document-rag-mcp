@@ -58,12 +58,12 @@ def test_chunker_markdown():
 
 
 def test_chunker_pdf_page_numbers():
-    config = ChunkingConfig(max_chunk_size=100)
+    config = ChunkingConfig(local_model="invalid-local-model", max_chunk_size=10)
     chunker = DocumentChunker(config)
 
     pages = [
-        ExtractedPage(text="Page one content.", page_number=1, headings=[("Page One Heading", 1)]),
-        ExtractedPage(text="Page two content.", page_number=2, headings=[("Page Two Heading", 1)]),
+        ExtractedPage(text="Page one content is long enough to split.", page_number=1, headings=[("Page One Heading", 1)]),
+        ExtractedPage(text="Page two content is long enough to split.", page_number=2, headings=[("Page Two Heading", 1)]),
     ]
 
     chunks = chunker.chunk_pages(

@@ -136,3 +136,8 @@ cython_debug/
 *.db
 *.db-journal
 chroma/
+
+# Configuration files
+config.yaml
+config.yml
+

@@ -120,7 +120,10 @@ class IngestionPipeline:
 
         # 6. Generate embeddings for new/modified chunks
         if new_chunks_to_embed:
-            texts_to_embed = [c.text for c in new_chunks_to_embed]
+            texts_to_embed = [
+                f"[Document: {c.metadata.title or 'Unknown'} | Section: {c.metadata.section or 'Unknown'}]\n{c.text}"
+                for c in new_chunks_to_embed
+            ]
             vectors = await self.embedding_client.embed(texts_to_embed)
             for chunk, vector in zip(new_chunks_to_embed, vectors):
                 chunk.embedding = vector
@@ -146,7 +149,11 @@ class IngestionPipeline:
 
         # 8b. Update FTS index
         fts_data = [
-            (chunk.id, chunk.text, collection_name)
+            (
+                chunk.id,
+                f"[Document: {chunk.metadata.title or 'Unknown'} | Section: {chunk.metadata.section or 'Unknown'}]\n{chunk.text}",
+                collection_name
+            )
             for chunk in new_chunks
         ]
         self.state_store.save_chunks_text(fts_data)

@@ -87,6 +87,7 @@ async def test_pipeline_incremental_chunk_dedup(tmp_path, mock_vision_client):
     config = AppConfig()
     config.chunking.local_model = "invalid-local-model"
     config.chunking.max_chunk_size = 12
+    config.chunking.chunk_overlap = 0
     state_store = StateStore(tmp_path)
     vector_store = VectorStore(tmp_path)
 

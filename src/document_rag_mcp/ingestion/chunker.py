@@ -14,7 +14,7 @@ class DocumentChunker:
     def _init_chunkers(self) -> None:
         import chonkie
 
-        # 1. Initialize semantic chunker (for TXT / PDF)
+        # 1. Initialize semantic chunker
         try:
             self.semantic_chunker = chonkie.SemanticChunker(
                 embedding_model=self.config.local_model,
@@ -22,17 +22,19 @@ class DocumentChunker:
                 threshold=self.config.similarity_threshold,
             )
         except Exception as e:
-            # Fallback to SentenceChunker/TokenChunker if sentence-transformers is missing or fails
+            # Fallback to TokenChunker if sentence-transformers is missing or fails
             print(
                 f"Warning: Failed to load SemanticChunker with '{self.config.local_model}': {e}"
             )
             print("Falling back to TokenChunker for semantic text.")
-            self.semantic_chunker = chonkie.TokenChunker(chunk_size=self.config.max_chunk_size)
-
-        # 2. Initialize recursive chunker for Markdown (uses split rules rather than semantic embeddings)
-        self.markdown_chunker = chonkie.RecursiveChunker(
-            chunk_size=self.config.max_chunk_size,
-        )
+            overlap = min(
+                self.config.chunk_overlap,
+                max(0, self.config.max_chunk_size - 1)
+            )
+            self.semantic_chunker = chonkie.TokenChunker(
+                chunk_size=self.config.max_chunk_size,
+                chunk_overlap=overlap,
+            )
 
     def chunk_pages(
         self,
@@ -81,11 +83,59 @@ class DocumentChunker:
         if not full_text:
             return []
 
-        # 2. Chunk once on full document
-        if file_type == "md":
-            chunks_out = self.markdown_chunker.chunk(full_text)
+        # 2. Section-Bound Chunking
+        # Ensure heading offsets are sorted by position
+        heading_offsets.sort(key=lambda x: x[0])
+
+        # Define sections using the heading offsets
+        sections = []
+        if not heading_offsets:
+            sections.append((0, len(full_text), None))
         else:
-            chunks_out = self.semantic_chunker.chunk(full_text)
+            # First section before any heading (if any)
+            if heading_offsets[0][0] > 0:
+                sections.append((0, heading_offsets[0][0], None))
+            for i in range(len(heading_offsets)):
+                start = heading_offsets[i][0]
+                end = heading_offsets[i+1][0] if i + 1 < len(heading_offsets) else len(full_text)
+                heading_text = heading_offsets[i][1]
+                sections.append((start, end, heading_text))
+
+            # Clean up the first section if it contains no alphanumeric characters (e.g. just '# ')
+            if len(sections) > 1 and sections[0][2] is None:
+                first_start, first_end, _ = sections[0]
+                if not any(c.isalnum() for c in full_text[first_start:first_end]):
+                    # Merge it into the next section (the first heading section)
+                    second_start, second_end, second_name = sections[1]
+                    sections[1] = (first_start, second_end, second_name)
+                    sections.pop(0)
+
+        chunks_out = []
+        from chonkie import Chunk
+        for start, end, section_name in sections:
+            section_text = full_text[start:end]
+            if not section_text.strip():
+                continue
+
+            num_tokens = self.semantic_chunker.tokenizer.count_tokens(section_text)
+            if num_tokens <= self.config.max_chunk_size:
+                # Keep it as a single chunk
+                chunks_out.append(
+                    Chunk(
+                        text=section_text,
+                        start_index=start,
+                        end_index=end,
+                        token_count=num_tokens,
+                    )
+                )
+            else:
+                # Chunk it semantically (or with TokenChunker if that's the fallback)
+                sub_chunks = self.semantic_chunker.chunk(section_text)
+                for sc in sub_chunks:
+                    # Adjust start_index and end_index to be relative to full_text
+                    sc.start_index += start
+                    sc.end_index += start
+                    chunks_out.append(sc)
 
         total_chunks = len(chunks_out)
         document_chunks: list[DocumentChunk] = []

@@ -163,7 +163,6 @@ class VectorStore:
             if results and "documents" in results and results["documents"]:
                 docs = results["documents"]
                 metas = results["metadatas"]
-                res_ids = results["ids"]
                 
                 for i in range(len(docs)):
                     meta_dict = metas[i]

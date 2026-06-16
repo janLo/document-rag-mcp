@@ -1,6 +1,6 @@
 [project]
 name = "document-rag-mcp"
-version = "0.1.0"
+dynamic = ["version"]
 description = "RAG MCP Server — watches folders, chunks documents, serves semantic search via MCP"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
@@ -34,8 +34,11 @@ docs = [
 document-rag-mcp = "document_rag_mcp.cli:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/document_rag_mcp"]
